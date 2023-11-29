@@ -170,3 +170,22 @@ class Question:
         ]
         print(result)
         return bytes(result)
+
+
+@dataclasses.dataclass
+class Packet:
+    """A DNS packet."""
+
+    header: Header
+
+    @classmethod
+    def unpack(cls, buf: bytes) -> Packet:
+        """Unpack a DNS packet out of a byte buffer."""
+        header = Header.unpack(buf)
+
+        return cls(header=header)
+
+    def pack(self) -> bytes:
+        """Pack a DNS packet into a bytes object."""
+        result = self.header.pack()
+        return result
