@@ -19,7 +19,7 @@ def main():
 
             response_code = 0 if request.header.operation_code == 0 else 4
             answer = dns.ResourceRecord(
-                dns.LabelSequence([b'codecrafters', b'io']),
+                request.questions[0].name,
                 dns.AnswerType.A,
                 dns.AnswerClass.IN,
                 123,
