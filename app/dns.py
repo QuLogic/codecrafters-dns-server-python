@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 import math
+import re
 import typing
 
 
@@ -138,9 +139,11 @@ class LabelSequence(tuple[bytes, ...]):
         """Validate fields fit within label sequence."""
         self = super().__new__(cls, *args)
         for name in self:
-            if len(name) > 255:
+            if len(name) > 63:
                 raise ValueError(
-                    f'Name entry {name} cannot be longer than 255 characters')
+                    f'Name entry {name!r} may not be longer than 63 characters')
+            if not re.fullmatch(rb'[A-Za-z]([A-Za-z0-9-]*[A-Za-z])?', name):
+                raise ValueError(f'Name entry {name!r} does not obey DNS rules')
         return self
 
     @classmethod

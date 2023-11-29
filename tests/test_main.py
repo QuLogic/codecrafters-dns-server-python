@@ -92,6 +92,37 @@ def test_dns_header_unpacking():
     assert header.additional_record_count == 108
 
 
+def test_label_sequence_invalid():
+    with pytest.raises(ValueError, match=r'.*longer than 63.*'):
+        dns.LabelSequence([b'A' * 200])
+    with pytest.raises(ValueError, match=r'.*does not obey DNS rules'):
+        dns.LabelSequence([b'0'])
+    with pytest.raises(ValueError, match=r'.*does not obey DNS rules'):
+        dns.LabelSequence([b'0foo'])
+    with pytest.raises(ValueError, match=r'.*does not obey DNS rules'):
+        dns.LabelSequence([b'foo0-'])
+    with pytest.raises(ValueError, match=r'.*does not obey DNS rules'):
+        dns.LabelSequence([b'f!o0'])
+
+
+def test_label_sequence_packing():
+    name = dns.LabelSequence([b'google', b'com'])
+    assert name.pack() == b'\x06google\x03com\x00'
+
+    name = dns.LabelSequence([b'codecrafters', b'io'])
+    assert name.pack() == b'\x0ccodecrafters\x02io\x00'
+
+
+def test_label_sequence_unpacking():
+    name, remaining = dns.LabelSequence.unpack(b'\x06google\x03com\x00')
+    assert name == (b'google', b'com')
+    assert remaining == b''
+
+    name, remaining = dns.LabelSequence.unpack(b'\x0ccodecrafters\x02io\x00')
+    assert name == (b'codecrafters', b'io')
+    assert remaining == b''
+
+
 def test_question_packing():
     question = dns.Question(dns.LabelSequence([b'google', b'com']),
                             dns.QuestionType.A,
