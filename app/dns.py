@@ -114,10 +114,10 @@ class Header(BitField):
     recursion_available: int = bit_field(1)
     reserved: int = bit_field(3, default=0)
     response_code: int = bit_field(4)
-    question_count: int = bit_field(16)
-    answer_record_count: int = bit_field(16)
-    authority_record_count: int = bit_field(16)
-    additional_record_count: int = bit_field(16)
+    question_count: int = bit_field(16, default=0)
+    answer_record_count: int = bit_field(16, default=0)
+    authority_record_count: int = bit_field(16, default=0)
+    additional_record_count: int = bit_field(16, default=0)
 
 
 @dataclasses.dataclass
