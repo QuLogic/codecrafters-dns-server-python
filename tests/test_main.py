@@ -93,23 +93,25 @@ def test_dns_header_unpacking():
 
 
 def test_question_packing():
-    question = dns.Question([b'google', b'com'], 1, 1)
+    question = dns.Question([b'google', b'com'], dns.QuestionType.A,
+                            dns.QuestionClass.IN)
     assert question.pack() == b'\x06google\x03com\x00\x00\x01\x00\x01'
 
-    question = dns.Question([b'codecrafters', b'io'], 1, 1)
+    question = dns.Question([b'codecrafters', b'io'], dns.QuestionType.A,
+                            dns.QuestionClass.IN)
     assert question.pack() == b'\x0ccodecrafters\x02io\x00\x00\x01\x00\x01'
 
 
 def test_question_unpacking():
     question, remaining = dns.Question.unpack(b'\x06google\x03com\x00\x00\x01\x00\x01')
     assert question.name == (b'google', b'com')
-    assert question.qtype == 1
-    assert question.qclass == 1
+    assert question.qtype == dns.QuestionType.A
+    assert question.qclass == dns.QuestionClass.IN
     assert remaining == b''
 
     question, remaining = dns.Question.unpack(
         b'\x0ccodecrafters\x02io\x00\x00\x01\x00\x01')
     assert question.name == (b'codecrafters', b'io')
-    assert question.qtype == 1
-    assert question.qclass == 1
+    assert question.qtype == dns.QuestionType.A
+    assert question.qclass == dns.QuestionClass.IN
     assert remaining == b''

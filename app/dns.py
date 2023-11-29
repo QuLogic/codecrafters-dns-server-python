@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import enum
 import math
 import typing
 
@@ -130,13 +131,56 @@ class Header(BitField):
     additional_record_count: int = bit_field(16, default=0)
 
 
+class QuestionType(enum.IntEnum):
+    """
+    QTYPE fields appear in the question part of a query.
+
+    QTYPES are a superset of TYPEs, hence all TYPEs are valid QTYPEs.
+    """
+
+    A = 1  # A host address.
+    NS = 2  # An authoritative name server.
+    MD = 3  # A mail destination (Obsolete - use MX).
+    MF = 4  # A mail forwarder (Obsolete - use MX).
+    CNAME = 5  # The canonical name for an alias.
+    SOA = 6  # Marks the start of a zone of authority.
+    MB = 7  # A mailbox domain name (EXPERIMENTAL).
+    MG = 8  # A mail group member (EXPERIMENTAL).
+    MR = 9  # A mail rename domain name (EXPERIMENTAL).
+    NULL = 10  # A null RR (EXPERIMENTAL).
+    WKS = 11  # A well known service description.
+    PTR = 12  # A domain name pointer.
+    HINFO = 13  # Host information.
+    MINFO = 14  # Mailbox or mail list information.
+    MX = 15  # Mail exchange.
+    TXT = 16  # Text strings.
+    AXFR = 252  # A request for a transfer of an entire zone.
+    MAILB = 253  # A request for mailbox-related records (MB, MG or MR).
+    MAILA = 254  # A request for mail agent RRs (Obsolete - see MX).
+    ALL = 255  # A request for all records.
+
+
+class QuestionClass(enum.IntEnum):
+    """
+    QCLASS fields appear in the question section of a query.
+
+    QCLASS values are a superset of CLASS values; every CLASS is a valid QCLASS.
+    """
+
+    IN = 1  # The Internet.
+    CS = 2  # The CSNET class (Obsolete - used only for examples in some obsolete RFCs).
+    CH = 3  # The CHAOS class.
+    HS = 4  # Hesiod [Dyer 87].
+    ALL = 255  # Any class.
+
+
 @dataclasses.dataclass
 class Question:
     """A DNS question."""
 
     name: tuple[bytes, ...]
-    qtype: int = bit_field(16)
-    qclass: int = bit_field(16)
+    qtype: QuestionType = bit_field(16)
+    qclass: QuestionClass = bit_field(16)
 
     def __post_init__(self):
         """Validate fields fit within question."""
@@ -157,8 +201,8 @@ class Question:
             buf = buf[size + 1:]
             name.append(label)
         # Add 1 to remaining indices to skip the last 0x00 size byte.
-        qtype = (buf[1] << 8) | buf[2]
-        qclass = (buf[3] << 8) | buf[4]
+        qtype = QuestionType((buf[1] << 8) | buf[2])
+        qclass = QuestionClass((buf[3] << 8) | buf[4])
         return cls(name=tuple(name), qtype=qtype, qclass=qclass), buf[5:]
 
     def pack(self) -> bytes:
