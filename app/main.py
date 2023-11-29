@@ -11,6 +11,12 @@ def main():
         try:
             buf, source = udp_socket.recvfrom(512)
 
+            request = dns.Packet.unpack(buf)
+            print(f'Received request: {request.header}')
+
+            for i, question in enumerate(request.questions):
+                print(f'Question {i}: {question}')
+
             response = dns.Packet(
                 # Expected header for the "Write header section" stage.
                 header=dns.Header(packet_identifier=1234, query_response=1,

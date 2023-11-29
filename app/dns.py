@@ -125,8 +125,8 @@ class Question:
     """A DNS question."""
 
     name: tuple[bytes]
-    type_: int = bit_field(16)
-    class_: int = bit_field(16)
+    qtype: int = bit_field(16)
+    qclass: int = bit_field(16)
 
     def __post_init__(self):
         """Validate fields fit within question."""
@@ -149,14 +149,14 @@ class Question:
         # TODO: Check buffer size.
         name = []
         while (size := buf[0]) != 0:
-            # Add 1 everwhere to skip the size byte.
+            # Add 1 everywhere to skip the size byte.
             label = buf[1:size + 1]
             buf = buf[size + 1:]
             name.append(label)
         # Add 1 to remaining indices to skip the last 0x00 size byte.
-        type_ = (buf[1] << 8) | buf[2]
-        class_ = (buf[3] << 8) | buf[4]
-        return cls(name=name, type_=type_, class_=class_), buf[5:]
+        qtype = (buf[1] << 8) | buf[2]
+        qclass = (buf[3] << 8) | buf[4]
+        return cls(name=name, qtype=qtype, qclass=qclass), buf[5:]
 
     def pack(self) -> bytes:
         """Pack a question into a bytes object."""
@@ -165,10 +165,9 @@ class Question:
             result += [len(name), *name]
         result += [
             0x00,
-            self.type_ >> 8, self.type_ & 0xff,
-            self.class_ >> 8, self.class_ & 0xff,
+            self.qtype >> 8, self.qtype & 0xff,
+            self.qclass >> 8, self.qclass & 0xff,
         ]
-        print(result)
         return bytes(result)
 
 
@@ -177,15 +176,34 @@ class Packet:
     """A DNS packet."""
 
     header: Header
+    questions: tuple[Question]
+
+    auto_set_header: dataclasses.InitVar[bool] = False
+
+    def __post_init__(self, auto_set_header: bool) -> None:
+        """Refresh header fields if requested."""
+        if auto_set_header:
+            self.header = dataclasses.replace(
+                self.header,
+                question_count=len(self.questions),
+            )
 
     @classmethod
     def unpack(cls, buf: bytes) -> Packet:
         """Unpack a DNS packet out of a byte buffer."""
         header = Header.unpack(buf)
+        remaining = buf[Header.total_bytes:]
 
-        return cls(header=header)
+        questions = []
+        for i in range(header.question_count):
+            question, remaining = Question.unpack(remaining)
+            questions.append(question)
+
+        return cls(header=header, questions=tuple(questions))
 
     def pack(self) -> bytes:
         """Pack a DNS packet into a bytes object."""
         result = self.header.pack()
+        for question in self.questions:
+            result += question.pack()
         return result
