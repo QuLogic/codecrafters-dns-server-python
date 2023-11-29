@@ -11,19 +11,25 @@ def bit_field(width, **kwargs):
     return dataclasses.field(metadata={'width': width}, **kwargs)
 
 
+def _check_bit_fields(obj, allow_non_bitfield: bool = True) -> None:
+    for field in dataclasses.fields(obj):
+        if 'width' not in field.metadata:
+            if allow_non_bitfield:
+                continue
+            raise TypeError(f'{field.name} is not annotated with bit field width')
+        max_value = 2 ** field.metadata['width'] - 1
+        value = getattr(obj, field.name)
+        if value < 0 or value > max_value:
+            raise ValueError(
+                f'{field.name} ({value}) is out of bounds [0, {max_value}]')
+
+
 class BitField:
     """A mixin for dataclass of bit fields."""
 
     def __post_init__(self) -> None:
         """Validate fields fit within specified width."""
-        for field in dataclasses.fields(self):
-            if 'width' not in field.metadata:
-                raise TypeError(f'{field.name} is not annotated with bit field width')
-            max_value = 2 ** field.metadata['width'] - 1
-            value = getattr(self, field.name)
-            if value < 0 or value > max_value:
-                raise ValueError(
-                    f'{field.name} ({value}) is out of bounds [0, {max_value}]')
+        _check_bit_fields(self, allow_non_bitfield=False)
 
     @classmethod
     @property
@@ -134,14 +140,7 @@ class Question:
             if len(name) > 255:
                 raise ValueError(
                     f'Name entry {name} cannot be longer than 255 characters')
-        for field in dataclasses.fields(self):
-            if 'width' not in field.metadata:
-                continue
-            max_value = 2 ** field.metadata['width'] - 1
-            value = getattr(self, field.name)
-            if value < 0 or value > max_value:
-                raise ValueError(
-                    f'{field.name} ({value}) is out of bounds [0, {max_value}]')
+        _check_bit_fields(self)
 
     @classmethod
     def unpack(cls, buf: bytes) -> tuple[Question, bytes]:
