@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import typing
+
+
+_TBF = typing.TypeVar('_TBF', bound='BitField')
 
 
 def bit_field(width, **kwargs):
@@ -39,7 +43,7 @@ class BitField:
         return math.ceil(total_width / 8)
 
     @classmethod
-    def unpack(cls, buf: bytes) -> BitField:
+    def unpack(cls: type[_TBF], buf: bytes) -> _TBF:
         """Unpack a bitfield out of a byte buffer."""
         if len(buf) < cls.total_bytes:
             raise ValueError(
@@ -130,7 +134,7 @@ class Header(BitField):
 class Question:
     """A DNS question."""
 
-    name: tuple[bytes]
+    name: tuple[bytes, ...]
     qtype: int = bit_field(16)
     qclass: int = bit_field(16)
 
@@ -155,7 +159,7 @@ class Question:
         # Add 1 to remaining indices to skip the last 0x00 size byte.
         qtype = (buf[1] << 8) | buf[2]
         qclass = (buf[3] << 8) | buf[4]
-        return cls(name=name, qtype=qtype, qclass=qclass), buf[5:]
+        return cls(name=tuple(name), qtype=qtype, qclass=qclass), buf[5:]
 
     def pack(self) -> bytes:
         """Pack a question into a bytes object."""
@@ -175,7 +179,7 @@ class Packet:
     """A DNS packet."""
 
     header: Header
-    questions: tuple[Question]
+    questions: tuple[Question, ...] = ()
 
     auto_set_header: dataclasses.InitVar[bool] = False
 
