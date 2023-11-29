@@ -131,6 +131,39 @@ class Header(BitField):
     additional_record_count: int = bit_field(16, default=0)
 
 
+class LabelSequence(tuple[bytes, ...]):
+    """A DNS label sequence."""
+
+    def __new__(cls, *args):
+        """Validate fields fit within label sequence."""
+        self = super().__new__(cls, *args)
+        for name in self:
+            if len(name) > 255:
+                raise ValueError(
+                    f'Name entry {name} cannot be longer than 255 characters')
+        return self
+
+    @classmethod
+    def unpack(cls, buf: bytes) -> tuple[LabelSequence, bytes]:
+        """Unpack a label sequence out of a byte buffer and return remaining bytes."""
+        # TODO: Check buffer size.
+        name = []
+        while (size := buf[0]) != 0:
+            # Add 1 everywhere to skip the size byte.
+            label = buf[1:size + 1]
+            buf = buf[size + 1:]
+            name.append(label)
+        return cls(name), buf[1:]
+
+    def pack(self) -> bytes:
+        """Pack a label sequence into a bytes object."""
+        result = []
+        for name in self:
+            result += [len(name), *name]
+        result += [0x00]
+        return bytes(result)
+
+
 class QuestionType(enum.IntEnum):
     """
     QTYPE fields appear in the question part of a query.
@@ -178,44 +211,30 @@ class QuestionClass(enum.IntEnum):
 class Question:
     """A DNS question."""
 
-    name: tuple[bytes, ...]
+    name: LabelSequence
     qtype: QuestionType = bit_field(16)
     qclass: QuestionClass = bit_field(16)
 
     def __post_init__(self):
         """Validate fields fit within question."""
-        for name in self.name:
-            if len(name) > 255:
-                raise ValueError(
-                    f'Name entry {name} cannot be longer than 255 characters')
         _check_bit_fields(self)
 
     @classmethod
     def unpack(cls, buf: bytes) -> tuple[Question, bytes]:
         """Unpack a question out of a byte buffer and return remaining bytes."""
         # TODO: Check buffer size.
-        name = []
-        while (size := buf[0]) != 0:
-            # Add 1 everywhere to skip the size byte.
-            label = buf[1:size + 1]
-            buf = buf[size + 1:]
-            name.append(label)
-        # Add 1 to remaining indices to skip the last 0x00 size byte.
-        qtype = QuestionType((buf[1] << 8) | buf[2])
-        qclass = QuestionClass((buf[3] << 8) | buf[4])
-        return cls(name=tuple(name), qtype=qtype, qclass=qclass), buf[5:]
+        name, remaining = LabelSequence.unpack(buf)
+        qtype = QuestionType((remaining[0] << 8) | remaining[1])
+        qclass = QuestionClass((remaining[2] << 8) | remaining[3])
+        return cls(name=name, qtype=qtype, qclass=qclass), remaining[4:]
 
     def pack(self) -> bytes:
         """Pack a question into a bytes object."""
-        result = []
-        for name in self.name:
-            result += [len(name), *name]
-        result += [
-            0x00,
+        result = self.name.pack() + bytes([
             self.qtype >> 8, self.qtype & 0xff,
             self.qclass >> 8, self.qclass & 0xff,
-        ]
-        return bytes(result)
+        ])
+        return result
 
 
 @dataclasses.dataclass
