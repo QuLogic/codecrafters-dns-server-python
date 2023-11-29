@@ -207,3 +207,12 @@ class Packet:
         for question in self.questions:
             result += question.pack()
         return result
+
+    def print(self, indent_level=0, tab_size=4):
+        """Print out a DNS packet at a given *indent_level* and *tab_size*."""
+        tab = ' ' * tab_size
+        initial = tab * indent_level
+        print(f'{initial}{self.header}')
+
+        for i, question in enumerate(self.questions):
+            print(f'{initial}{tab}Question {i}: {question}')

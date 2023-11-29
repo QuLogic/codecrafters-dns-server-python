@@ -12,10 +12,10 @@ def main():
             buf, source = udp_socket.recvfrom(512)
 
             request = dns.Packet.unpack(buf)
-            print(f'Received request: {request.header}')
-
-            for i, question in enumerate(request.questions):
-                print(f'Question {i}: {question}')
+            print('REQUEST')
+            print('=======')
+            request.print(indent_level=1)
+            print()
 
             response = dns.Packet(
                 # Expected header for the "Write header section" stage.
@@ -23,7 +23,13 @@ def main():
                                   operation_code=0, authoritative_answer=0,
                                   truncation=0, recursion_desired=0,
                                   recursion_available=0, response_code=0),
+                questions=request.questions,
+                auto_set_header=True,
             )
+            print('RESPONSE')
+            print('========')
+            response.print(indent_level=1)
+            print()
 
             udp_socket.sendto(response.pack(), source)
         except Exception as e:
