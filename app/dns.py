@@ -291,7 +291,7 @@ class ResourceRecord:
         name, buf = LabelSequence.unpack(buf)
         atype = AnswerType(int.from_bytes(buf[0:2]))
         aclass = AnswerClass(int.from_bytes(buf[2:4]))
-        ttl = int.from_bytes(buf[4:8])
+        ttl = int.from_bytes(buf[4:8], signed=True)
         rdlen = int.from_bytes(buf[8:10])
         data = buf[10:rdlen + 10]
         return (cls(name=name, atype=atype, aclass=aclass, ttl=ttl, data=data),
@@ -301,7 +301,8 @@ class ResourceRecord:
         """Pack a DNS resource record into a bytes object."""
         result = (
             self.name.pack() +
-            self.atype.to_bytes(2) + self.aclass.to_bytes(2) + self.ttl.to_bytes(4) +
+            self.atype.to_bytes(2) + self.aclass.to_bytes(2) +
+            self.ttl.to_bytes(4, signed=True) +
             len(self.data).to_bytes(2) + self.data
         )
         return result
