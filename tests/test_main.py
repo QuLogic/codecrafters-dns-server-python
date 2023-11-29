@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from app.main import DNSHeader
+from app.dns import DNSHeader
 
 
 def test_dns_header_invalid():
