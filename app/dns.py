@@ -1,6 +1,7 @@
 """DNS packets."""
 
 import dataclasses
+import math
 
 
 def bit_field(width, **kwargs):
@@ -8,23 +9,8 @@ def bit_field(width, **kwargs):
     return dataclasses.field(metadata={'width': width}, **kwargs)
 
 
-@dataclasses.dataclass(kw_only=True)
-class DNSHeader:
-    """A DNS header."""
-
-    packet_identifier: int = bit_field(16)
-    query_response: int = bit_field(1)
-    operation_code: int = bit_field(4)
-    authoritative_answer: int = bit_field(1)
-    truncation: int = bit_field(1)
-    recursion_desired: int = bit_field(1)
-    recursion_available: int = bit_field(1)
-    reserved: int = bit_field(3, default=0)
-    response_code: int = bit_field(4)
-    question_count: int = bit_field(16)
-    answer_record_count: int = bit_field(16)
-    authority_record_count: int = bit_field(16)
-    additional_record_count: int = bit_field(16)
+class BitField:
+    """A mixin for dataclass of bit fields."""
 
     def __post_init__(self) -> None:
         """Validate fields fit within specified width."""
@@ -70,3 +56,22 @@ class DNSHeader:
             result.append(current_byte)
 
         return bytes(result)
+
+
+@dataclasses.dataclass(kw_only=True)
+class DNSHeader(BitField):
+    """A DNS header."""
+
+    packet_identifier: int = bit_field(16)
+    query_response: int = bit_field(1)
+    operation_code: int = bit_field(4)
+    authoritative_answer: int = bit_field(1)
+    truncation: int = bit_field(1)
+    recursion_desired: int = bit_field(1)
+    recursion_available: int = bit_field(1)
+    reserved: int = bit_field(3, default=0)
+    response_code: int = bit_field(4)
+    question_count: int = bit_field(16)
+    answer_record_count: int = bit_field(16)
+    authority_record_count: int = bit_field(16)
+    additional_record_count: int = bit_field(16)
