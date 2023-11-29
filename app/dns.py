@@ -224,16 +224,13 @@ class Question:
         """Unpack a question out of a byte buffer and return remaining bytes."""
         # TODO: Check buffer size.
         name, remaining = LabelSequence.unpack(buf)
-        qtype = QuestionType((remaining[0] << 8) | remaining[1])
-        qclass = QuestionClass((remaining[2] << 8) | remaining[3])
+        qtype = QuestionType(int.from_bytes(remaining[0:2]))
+        qclass = QuestionClass(int.from_bytes(remaining[2:4]))
         return cls(name=name, qtype=qtype, qclass=qclass), remaining[4:]
 
     def pack(self) -> bytes:
         """Pack a question into a bytes object."""
-        result = self.name.pack() + bytes([
-            self.qtype >> 8, self.qtype & 0xff,
-            self.qclass >> 8, self.qclass & 0xff,
-        ])
+        result = self.name.pack() + self.qtype.to_bytes(2) + self.qclass.to_bytes(2)
         return result
 
 
