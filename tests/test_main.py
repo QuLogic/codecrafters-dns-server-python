@@ -117,3 +117,27 @@ def test_question_unpacking():
     assert question.qtype == dns.QuestionType.A
     assert question.qclass == dns.QuestionClass.IN
     assert remaining == b''
+
+
+def test_resource_record_packing():
+    rr = dns.ResourceRecord(
+        dns.LabelSequence([b'codecrafters', b'io']),
+        dns.AnswerType.A,
+        dns.AnswerClass.IN,
+        60,
+        b'\x08\x08\x08\x08')
+    assert rr.pack() == (
+        b'\x0ccodecrafters\x02io\x00\x00\x01\x00\x01\x00\x00\x00\x3c\x00\x04'
+        b'\x08\x08\x08\x08')
+
+
+def test_resource_record_unpacking():
+    rr, remaining = dns.ResourceRecord.unpack(
+        b'\x0ccodecrafters\x02io\x00\x00\x01\x00\x01\x00\x00\x00\x3c\x00\x04'
+        b'\x08\x08\x08\x08')
+    assert rr.name == (b'codecrafters', b'io')
+    assert rr.atype == dns.AnswerType.A
+    assert rr.aclass == dns.AnswerClass.IN
+    assert rr.ttl == 60
+    assert rr.data == b'\x08\x08\x08\x08'
+    assert remaining == b''

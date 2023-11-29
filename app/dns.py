@@ -234,12 +234,83 @@ class Question:
         return result
 
 
+class AnswerType(enum.IntEnum):
+    """
+    TYPE fields are used in resource records.
+
+    Note that these types are a subset of QTYPEs.
+    """
+
+    A = 1  # A host address.
+    NS = 2  # An authoritative name server.
+    MD = 3  # A mail destination (Obsolete - use MX).
+    MF = 4  # A mail forwarder (Obsolete - use MX).
+    CNAME = 5  # The canonical name for an alias.
+    SOA = 6  # Marks the start of a zone of authority.
+    MB = 7  # A mailbox domain name (EXPERIMENTAL).
+    MG = 8  # A mail group member (EXPERIMENTAL).
+    MR = 9  # A mail rename domain name (EXPERIMENTAL).
+    NULL = 10  # A null RR (EXPERIMENTAL).
+    WKS = 11  # A well known service description.
+    PTR = 12  # A domain name pointer.
+    HINFO = 13  # Host information.
+    MINFO = 14  # Mailbox or mail list information.
+    MX = 15  # Mail exchange.
+    TXT = 16  # Text strings.
+
+
+class AnswerClass(enum.IntEnum):
+    """CLASS fields appear in resource records."""
+
+    IN = 1  # The Internet.
+    CS = 2  # The CSNET class (Obsolete - used only for examples in some obsolete RFCs).
+    CH = 3  # The CHAOS class.
+    HS = 4  # Hesiod [Dyer 87].
+
+
+@dataclasses.dataclass
+class ResourceRecord:
+    """A DNS resource record."""
+
+    name: LabelSequence
+    atype: AnswerType = bit_field(16)
+    aclass: AnswerClass = bit_field(16)
+    ttl: int = bit_field(32)
+    data: bytes = b''
+
+    def __post_init__(self):
+        """Validate fields fit within resource record."""
+        _check_bit_fields(self)
+
+    @classmethod
+    def unpack(cls, buf: bytes) -> ResourceRecord:
+        """Unpack a DNS resource record out of a byte buffer."""
+        name, buf = LabelSequence.unpack(buf)
+        atype = AnswerType(int.from_bytes(buf[0:2]))
+        aclass = AnswerClass(int.from_bytes(buf[2:4]))
+        ttl = int.from_bytes(buf[4:8])
+        rdlen = int.from_bytes(buf[8:10])
+        data = buf[10:rdlen + 10]
+        return (cls(name=name, atype=atype, aclass=aclass, ttl=ttl, data=data),
+                buf[rdlen+10:])
+
+    def pack(self) -> bytes:
+        """Pack a DNS resource record into a bytes object."""
+        result = (
+            self.name.pack() +
+            self.atype.to_bytes(2) + self.aclass.to_bytes(2) + self.ttl.to_bytes(4) +
+            len(self.data).to_bytes(2) + self.data
+        )
+        return result
+
+
 @dataclasses.dataclass
 class Packet:
     """A DNS packet."""
 
     header: Header
     questions: tuple[Question, ...] = ()
+    answers: tuple[ResourceRecord, ...] = ()
 
     auto_set_header: dataclasses.InitVar[bool] = False
 
@@ -249,6 +320,7 @@ class Packet:
             self.header = dataclasses.replace(
                 self.header,
                 question_count=len(self.questions),
+                answer_record_count=len(self.answers),
             )
 
     @classmethod
@@ -269,6 +341,8 @@ class Packet:
         result = self.header.pack()
         for question in self.questions:
             result += question.pack()
+        for record in self.answers:
+            result += record.pack()
         return result
 
     def print(self, indent_level=0, tab_size=4):
@@ -279,3 +353,6 @@ class Packet:
 
         for i, question in enumerate(self.questions):
             print(f'{initial}{tab}Question {i}: {question}')
+
+        for i, record in enumerate(self.answers):
+            print(f'{initial}{tab}Answer {i}: {record}')

@@ -17,6 +17,13 @@ def main():
             request.print(indent_level=1)
             print()
 
+            answer = dns.ResourceRecord(
+                dns.LabelSequence([b'codecrafters', b'io']),
+                dns.AnswerType.A,
+                dns.AnswerClass.IN,
+                123,
+                b'\x01\x02\x03\x04')
+
             response = dns.Packet(
                 # Expected header for the "Write header section" stage.
                 header=dns.Header(packet_identifier=1234, query_response=1,
@@ -24,6 +31,7 @@ def main():
                                   truncation=0, recursion_desired=0,
                                   recursion_available=0, response_code=0),
                 questions=request.questions,
+                answers=(answer, ),
                 auto_set_header=True,
             )
             print('RESPONSE')
