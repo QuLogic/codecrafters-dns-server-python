@@ -90,3 +90,26 @@ def test_dns_header_unpacking():
     assert header.answer_record_count == 23
     assert header.authority_record_count == 42
     assert header.additional_record_count == 108
+
+
+def test_question_packing():
+    question = dns.Question([b'google', b'com'], 1, 1)
+    assert question.pack() == b'\x06google\x03com\x00\x00\x01\x00\x01'
+
+    question = dns.Question([b'codecrafters', b'io'], 1, 1)
+    assert question.pack() == b'\x0ccodecrafters\x02io\x00\x00\x01\x00\x01'
+
+
+def test_question_unpacking():
+    question, remaining = dns.Question.unpack(b'\x06google\x03com\x00\x00\x01\x00\x01')
+    assert question.name == [b'google', b'com']
+    assert question.type_ == 1
+    assert question.class_ == 1
+    assert remaining == b''
+
+    question, remaining = dns.Question.unpack(
+        b'\x0ccodecrafters\x02io\x00\x00\x01\x00\x01')
+    assert question.name == [b'codecrafters', b'io']
+    assert question.type_ == 1
+    assert question.class_ == 1
+    assert remaining == b''

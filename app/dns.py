@@ -118,3 +118,55 @@ class Header(BitField):
     answer_record_count: int = bit_field(16)
     authority_record_count: int = bit_field(16)
     additional_record_count: int = bit_field(16)
+
+
+@dataclasses.dataclass
+class Question:
+    """A DNS question."""
+
+    name: tuple[bytes]
+    type_: int = bit_field(16)
+    class_: int = bit_field(16)
+
+    def __post_init__(self):
+        """Validate fields fit within question."""
+        for name in self.name:
+            if len(name) > 255:
+                raise ValueError(
+                    f'Name entry {name} cannot be longer than 255 characters')
+        for field in dataclasses.fields(self):
+            if 'width' not in field.metadata:
+                continue
+            max_value = 2 ** field.metadata['width'] - 1
+            value = getattr(self, field.name)
+            if value < 0 or value > max_value:
+                raise ValueError(
+                    f'{field.name} ({value}) is out of bounds [0, {max_value}]')
+
+    @classmethod
+    def unpack(cls, buf: bytes) -> tuple[Question, bytes]:
+        """Unpack a question out of a byte buffer and return remaining bytes."""
+        # TODO: Check buffer size.
+        name = []
+        while (size := buf[0]) != 0:
+            # Add 1 everwhere to skip the size byte.
+            label = buf[1:size + 1]
+            buf = buf[size + 1:]
+            name.append(label)
+        # Add 1 to remaining indices to skip the last 0x00 size byte.
+        type_ = (buf[1] << 8) | buf[2]
+        class_ = (buf[3] << 8) | buf[4]
+        return cls(name=name, type_=type_, class_=class_), buf[5:]
+
+    def pack(self) -> bytes:
+        """Pack a question into a bytes object."""
+        result = []
+        for name in self.name:
+            result += [len(name), *name]
+        result += [
+            0x00,
+            self.type_ >> 8, self.type_ & 0xff,
+            self.class_ >> 8, self.class_ & 0xff,
+        ]
+        print(result)
+        return bytes(result)
