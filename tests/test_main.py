@@ -7,6 +7,10 @@ import pytest
 from app.dns import DNSHeader
 
 
+def test_dns_header_size():
+    assert DNSHeader.total_bytes == 12
+
+
 def test_dns_header_invalid():
     # Negative value.
     with pytest.raises(ValueError,
@@ -54,3 +58,35 @@ def test_dns_header_packing():
                        answer_record_count=23, authority_record_count=42,
                        additional_record_count=108)
     assert header.pack() == b'\x00\x04\xc2\x8f\x00\x10\x00\x17\x00\x2a\x00\x6c'
+
+
+def test_dns_header_unpacking():
+    # Expected header for the "Write header section" stage.
+    header = DNSHeader.unpack(b'\x04\xd2\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00')
+    assert header.packet_identifier == 1234
+    assert header.query_response == 1
+    assert header.operation_code == 0
+    assert header.authoritative_answer == 0
+    assert header.truncation == 0
+    assert header.recursion_desired == 0
+    assert header.recursion_available == 0
+    assert header.response_code == 0
+    assert header.question_count == 0
+    assert header.answer_record_count == 0
+    assert header.authority_record_count == 0
+    assert header.additional_record_count == 0
+
+    # Something non-zero in most fields (except reserved).
+    header = DNSHeader.unpack(b'\x00\x04\xc2\x8f\x00\x10\x00\x17\x00\x2a\x00\x6c')
+    assert header.packet_identifier == 4
+    assert header.query_response == 1
+    assert header.operation_code == 8
+    assert header.authoritative_answer == 0
+    assert header.truncation == 1
+    assert header.recursion_desired == 0
+    assert header.recursion_available == 1
+    assert header.response_code == 15
+    assert header.question_count == 16
+    assert header.answer_record_count == 23
+    assert header.authority_record_count == 42
+    assert header.additional_record_count == 108

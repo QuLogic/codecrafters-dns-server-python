@@ -23,6 +23,47 @@ class BitField:
                 raise ValueError(
                     f'{field.name} ({value}) is out of bounds [0, {max_value}]')
 
+    @classmethod
+    @property
+    def total_bytes(cls) -> int:
+        """Calculate size of bitfield in bytes."""
+        total_width = sum(field.metadata['width'] for field in dataclasses.fields(cls))
+        return math.ceil(total_width / 8)
+
+    @classmethod
+    def unpack(cls, buf: bytes) -> 'BitField':
+        """Unpack a bitfield out of a byte buffer."""
+        if len(buf) < cls.total_bytes:
+            raise ValueError(
+                f'Buffer of length {len(buf)} is smaller than expected '
+                f'bitfield size ({cls.total_bytes}).')
+
+        result = {}
+        index = 0
+        temp_value = 0
+        current_width = 0
+        for field in dataclasses.fields(cls):
+            width = field.metadata['width']
+
+            # Grab enough data from the buffer for this field.
+            while current_width < width:
+                temp_value <<= 8
+                temp_value |= buf[index]
+                current_width += 8
+                index += 1
+
+            # Get this field's bits by shifting (and truncating) extra bits.
+            result[field.name] = temp_value >> (current_width - width)
+
+            # Calculate a mask with the remaining bits only.
+            mask = 2 ** (current_width - width) - 1
+
+            # Remove this field's bits from the temporary value.
+            temp_value &= mask
+            current_width -= width
+
+        return cls(**result)
+
     def pack(self) -> bytes:
         """
         Pack bit fields into a bytes object.
