@@ -1,5 +1,7 @@
 """DNS packets."""
 
+from __future__ import annotations
+
 import dataclasses
 import math
 
@@ -31,7 +33,7 @@ class BitField:
         return math.ceil(total_width / 8)
 
     @classmethod
-    def unpack(cls, buf: bytes) -> 'BitField':
+    def unpack(cls, buf: bytes) -> BitField:
         """Unpack a bitfield out of a byte buffer."""
         if len(buf) < cls.total_bytes:
             raise ValueError(
@@ -100,7 +102,7 @@ class BitField:
 
 
 @dataclasses.dataclass(kw_only=True)
-class DNSHeader(BitField):
+class Header(BitField):
     """A DNS header."""
 
     packet_identifier: int = bit_field(16)
