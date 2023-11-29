@@ -24,6 +24,8 @@ def main():
             udp_socket.sendto(response.pack(), source)
         except Exception as e:
             print(f"Error receiving data: {e}")
+            import traceback
+            traceback.print_exception(e)
             break
 
 
