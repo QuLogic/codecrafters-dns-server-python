@@ -18,9 +18,9 @@ def main():
             break
 
 
-def bit_field(width):
+def bit_field(width, **kwargs):
     """Create a bit field with given *width*."""
-    return dataclasses.field(metadata={'width': width})
+    return dataclasses.field(metadata={'width': width}, **kwargs)
 
 
 @dataclasses.dataclass(kw_only=True)
@@ -34,7 +34,7 @@ class DNSHeader:
     truncation: int = bit_field(1)
     recursion_desired: int = bit_field(1)
     recursion_available: int = bit_field(1)
-    reserved: int = bit_field(3)
+    reserved: int = bit_field(3, default=0)
     response_code: int = bit_field(4)
     question_count: int = bit_field(16)
     answer_record_count: int = bit_field(16)
