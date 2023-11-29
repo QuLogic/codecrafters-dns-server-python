@@ -17,6 +17,7 @@ def main():
             request.print(indent_level=1)
             print()
 
+            response_code = 0 if request.header.operation_code == 0 else 4
             answer = dns.ResourceRecord(
                 dns.LabelSequence([b'codecrafters', b'io']),
                 dns.AnswerType.A,
@@ -26,10 +27,12 @@ def main():
 
             response = dns.Packet(
                 # Expected header for the "Write header section" stage.
-                header=dns.Header(packet_identifier=1234, query_response=1,
-                                  operation_code=0, authoritative_answer=0,
-                                  truncation=0, recursion_desired=0,
-                                  recursion_available=0, response_code=0),
+                header=dns.Header(packet_identifier=request.header.packet_identifier,
+                                  query_response=1,
+                                  operation_code=request.header.operation_code,
+                                  authoritative_answer=0, truncation=0,
+                                  recursion_desired=request.header.recursion_desired,
+                                  recursion_available=0, response_code=response_code),
                 questions=request.questions,
                 answers=(answer, ),
                 auto_set_header=True,
