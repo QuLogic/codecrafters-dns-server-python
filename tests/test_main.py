@@ -135,6 +135,34 @@ def test_label_sequence_unpacking(start_offset):
     assert offset == start_offset + len(buf)
 
 
+def test_label_sequence_invalid_compression():
+    with pytest.raises(ValueError, match='Label pointer uses unknown flags.*'):
+        dns.LabelSequence.unpack(b'\x80\x00', 0)
+    with pytest.raises(ValueError, match='Label pointer uses unknown flags.*'):
+        dns.LabelSequence.unpack(b'\x40\x00', 0)
+    with pytest.raises(ValueError, match='Label sequence contains a loop'):
+        dns.LabelSequence.unpack(b'\xc0\x00', 0)
+    with pytest.raises(ValueError,
+                       match=r'Label pointer \(66\) exceeds buffer size \(2\)'):
+        dns.LabelSequence.unpack(b'\xc0\x42', 0)
+
+
+def test_label_sequence_compression():
+    # Example from the RFC.
+    buf = b'\x42' * 20 + b'\x01F\x03ISI\x04ARPA\x00\03FOO\xc0\x14\xc0\x1a\x00'
+    names = []
+    offset = 20
+    while offset < len(buf):
+        name, offset = dns.LabelSequence.unpack(buf, offset)
+        names.append(name)
+    assert names == [
+        (b'F', b'ISI', b'ARPA'),
+        (b'FOO', b'F', b'ISI', b'ARPA'),
+        (b'ARPA', ),
+        (),
+    ]
+
+
 def test_question_packing():
     question = dns.Question(dns.LabelSequence([b'google', b'com']),
                             dns.QuestionType.A,

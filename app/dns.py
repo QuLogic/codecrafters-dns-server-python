@@ -162,7 +162,8 @@ class LabelSequence(tuple[bytes, ...]):
         return self
 
     @classmethod
-    def unpack(cls, buf: bytes, offset: int) -> tuple[LabelSequence, int]:
+    def unpack(cls, buf: bytes, offset: int,
+               other_offsets: set[int] | None = None) -> tuple[LabelSequence, int]:
         """
         Unpack a label sequence out of a byte buffer.
 
@@ -173,6 +174,9 @@ class LabelSequence(tuple[bytes, ...]):
         offset
             The offset in the byte buffer at which to start unpacking this label
             sequence.
+        other_offsets
+            A set to track offsets that have already been checked, in order to prevent
+            loops.
 
         Returns
         -------
@@ -182,8 +186,26 @@ class LabelSequence(tuple[bytes, ...]):
             The offset of the next byte after this label sequence.
         """
         # TODO: Check buffer size.
-        name = []
+        if other_offsets is None:
+            other_offsets = {offset}
+        name: list[bytes] = []
         while (size := buf[offset]) != 0:
+            if flags := size & 0b11000000:
+                if flags != 0b11000000:
+                    raise ValueError(f'Label pointer uses unknown flags {flags}')
+                # This is a pointer to another location; mask out the top flag bits.
+                pointer = int.from_bytes(buf[offset:offset + 2]) & 0b00111111_11111111
+                if pointer in other_offsets:
+                    raise ValueError('Label sequence contains a loop')
+                if pointer > len(buf):
+                    raise ValueError(
+                        f'Label pointer ({pointer}) exceeds buffer size ({len(buf)})')
+                other_offsets.add(pointer)
+                name.extend(LabelSequence.unpack(buf, pointer)[0])
+                # Two bytes used for pointer, but we add one below for the last size
+                # byte, so only add one here.
+                offset += 1
+                break
             # Add 1 everywhere to skip the size byte.
             label = buf[offset + 1:offset + size + 1]
             offset += size + 1
