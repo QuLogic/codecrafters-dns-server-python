@@ -443,7 +443,13 @@ class Packet:
             question, offset = Question.unpack(buf, offset)
             questions.append(question)
 
-        return cls(header=header, questions=tuple(questions)), offset
+        answers = []
+        for i in range(header.answer_record_count):
+            rr, offset = ResourceRecord.unpack(buf, offset)
+            answers.append(rr)
+
+        return (cls(header=header, questions=tuple(questions), answers=tuple(answers)),
+                offset)
 
     def pack(self) -> bytes:
         """Pack a DNS packet into a bytes object."""
