@@ -1,3 +1,8 @@
+"""DNS resolver application."""
+
+import argparse
+import dataclasses
+import random
 import socket
 import typing
 
@@ -50,32 +55,85 @@ class OpenRequest:
 
 
 def main():
+    parser = argparse.ArgumentParser(description='DNS resolver')
+    parser.add_argument('-r', '--resolver',
+                        help='Resolver to forward requests to')
+    args = parser.parse_args()
+    if args.resolver:
+        ip, port = args.resolver.rsplit(':', 1)
+        resolver = (ip, int(port))
+    else:
+        resolver = None
+
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_socket.bind(("127.0.0.1", 2053))
 
     open_requests = set()
+    subrequests = {}
 
     while True:
         try:
             buf, source = udp_socket.recvfrom(512)
+            open_request = None
 
-            request, bytes_used = dns.Packet.unpack(buf)
-            print(f'Received request of {len(buf)} bytes and parsed {bytes_used} bytes')
-            print('REQUEST')
-            print('=======')
-            request.print(indent_level=1)
-            print()
-            open_request = OpenRequest(source, request)
-            open_requests.add(open_request)
+            incoming, bytes_used = dns.Packet.unpack(buf)
+            print(f'Received packet from {source} of {len(buf)} bytes '
+                  f'and parsed {bytes_used} bytes')
 
-            # Add default answers.
-            for i, question in enumerate(open_request.request.questions):
-                open_request.answers[question] = dns.ResourceRecord(
-                    question.name,
-                    dns.AnswerType.A,
-                    dns.AnswerClass.IN,
-                    123 + 10 * i,
-                    b'\x01\x02\x03\x04')
+            if source == resolver:
+                # If this packet came from our upstream resolver, then add its results
+                # to our combined results for the original request.
+                response = incoming
+                print('FORWARDED RESPONSE')
+                print('==================')
+                response.print(indent_level=1)
+                print()
+
+                try:
+                    open_request = subrequests.pop(response.header.packet_identifier)
+                except KeyError:
+                    print('Received invalid packet from forwarded resolver')
+                    continue
+
+                open_request.add_response(response)
+            else:
+                # If this packet isn't from our upstream resolver, it's a real request
+                # to resolve an address, so add it to our tracking.
+                request = incoming
+                print('REQUEST')
+                print('=======')
+                request.print(indent_level=1)
+                print()
+
+                open_request = OpenRequest(source, request)
+                open_requests.add(open_request)
+
+                if resolver is not None:
+                    # If we have an upstream resolver configured, then forward the
+                    # request one question at a time.
+                    for question in request.questions:
+                        id = random.randrange(2**16 - 1)
+                        subrequests[id] = open_request
+                        packet = dns.Packet(
+                            header=dataclasses.replace(request.header,
+                                                       packet_identifier=id),
+                            questions=(question, ),
+                            auto_set_header=True,
+                        )
+                        print('FORWARDED REQUEST')
+                        print('=================')
+                        packet.print(indent_level=1)
+                        print()
+                        udp_socket.sendto(packet.pack(), resolver)
+                else:
+                    # If no upstream resolver is configured, then add default answers.
+                    for i, question in enumerate(open_request.request.questions):
+                        open_request.answers[question] = dns.ResourceRecord(
+                            question.name,
+                            dns.AnswerType.A,
+                            dns.AnswerClass.IN,
+                            123 + 10 * i,
+                            b'\x01\x02\x03\x04')
 
             if open_request is not None and open_request.is_complete:
                 response = open_request.to_response()
