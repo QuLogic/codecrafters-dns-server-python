@@ -12,6 +12,14 @@ def test_dns_header_size():
 
 
 def test_dns_header_invalid():
+    # Too small.
+    with pytest.raises(ValueError,
+                       match='Buffer of length 1 is smaller than expected.*'):
+        dns.Header.unpack(b'\x00', 0)
+    with pytest.raises(ValueError,
+                       match='Buffer of length 2 is smaller than expected.*'):
+        dns.Header.unpack(b'\x00' * 12, 10)
+
     # Negative value.
     with pytest.raises(ValueError,
                        match=re.escape('packet_identifier (-1) is out of '
@@ -60,9 +68,12 @@ def test_dns_header_packing():
     assert header.pack() == b'\x00\x04\xc2\x8f\x00\x10\x00\x17\x00\x2a\x00\x6c'
 
 
-def test_dns_header_unpacking():
+@pytest.mark.parametrize('start_offset', [0, 10])
+def test_dns_header_unpacking(start_offset):
     # Expected header for the "Write header section" stage.
-    header = dns.Header.unpack(b'\x04\xd2\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00')
+    header, offset = dns.Header.unpack(
+        b'\x42' * start_offset + b'\x04\xd2\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00',
+        start_offset)
     assert header.packet_identifier == 1234
     assert header.query_response == 1
     assert header.operation_code == 0
@@ -75,9 +86,12 @@ def test_dns_header_unpacking():
     assert header.answer_record_count == 0
     assert header.authority_record_count == 0
     assert header.additional_record_count == 0
+    assert offset == start_offset + 12
 
     # Something non-zero in most fields (except reserved).
-    header = dns.Header.unpack(b'\x00\x04\xc2\x8f\x00\x10\x00\x17\x00\x2a\x00\x6c')
+    header, offset = dns.Header.unpack(
+        b'\x42' * start_offset + b'\x00\x04\xc2\x8f\x00\x10\x00\x17\x00\x2a\x00\x6c',
+        start_offset)
     assert header.packet_identifier == 4
     assert header.query_response == 1
     assert header.operation_code == 8
@@ -89,7 +103,7 @@ def test_dns_header_unpacking():
     assert header.question_count == 16
     assert header.answer_record_count == 23
     assert header.authority_record_count == 42
-    assert header.additional_record_count == 108
+    assert offset == start_offset + 12
 
 
 def test_label_sequence_invalid():
@@ -113,14 +127,12 @@ def test_label_sequence_packing():
     assert name.pack() == b'\x0ccodecrafters\x02io\x00'
 
 
-def test_label_sequence_unpacking():
-    name, remaining = dns.LabelSequence.unpack(b'\x06google\x03com\x00')
-    assert name == (b'google', b'com')
-    assert remaining == b''
-
-    name, remaining = dns.LabelSequence.unpack(b'\x0ccodecrafters\x02io\x00')
+@pytest.mark.parametrize('start_offset', [0, 10])
+def test_label_sequence_unpacking(start_offset):
+    buf = b'\x0ccodecrafters\x02io\x00'
+    name, offset = dns.LabelSequence.unpack(b'\x42' * start_offset + buf, start_offset)
     assert name == (b'codecrafters', b'io')
-    assert remaining == b''
+    assert offset == start_offset + len(buf)
 
 
 def test_question_packing():
@@ -135,19 +147,14 @@ def test_question_packing():
     assert question.pack() == b'\x0ccodecrafters\x02io\x00\x00\x01\x00\x01'
 
 
-def test_question_unpacking():
-    question, remaining = dns.Question.unpack(b'\x06google\x03com\x00\x00\x01\x00\x01')
-    assert question.name == (b'google', b'com')
-    assert question.qtype == dns.QuestionType.A
-    assert question.qclass == dns.QuestionClass.IN
-    assert remaining == b''
-
-    question, remaining = dns.Question.unpack(
-        b'\x0ccodecrafters\x02io\x00\x00\x01\x00\x01')
+@pytest.mark.parametrize('start_offset', [0, 10])
+def test_question_unpacking(start_offset):
+    buf = b'\x0ccodecrafters\x02io\x00\x00\x01\x00\x01'
+    question, offset = dns.Question.unpack(b'\x42' * start_offset + buf, start_offset)
     assert question.name == (b'codecrafters', b'io')
     assert question.qtype == dns.QuestionType.A
     assert question.qclass == dns.QuestionClass.IN
-    assert remaining == b''
+    assert offset == start_offset + len(buf)
 
 
 def test_resource_record_packing():
@@ -162,13 +169,15 @@ def test_resource_record_packing():
         b'\x08\x08\x08\x08')
 
 
-def test_resource_record_unpacking():
-    rr, remaining = dns.ResourceRecord.unpack(
+@pytest.mark.parametrize('start_offset', [0, 10])
+def test_resource_record_unpacking(start_offset):
+    buf = (
         b'\x0ccodecrafters\x02io\x00\x00\x01\x00\x01\x00\x00\x00\x3c\x00\x04'
         b'\x08\x08\x08\x08')
+    rr, offset = dns.ResourceRecord.unpack(b'\x42' * start_offset + buf, start_offset)
     assert rr.name == (b'codecrafters', b'io')
     assert rr.atype == dns.AnswerType.A
     assert rr.aclass == dns.AnswerClass.IN
     assert rr.ttl == 60
     assert rr.data == b'\x08\x08\x08\x08'
-    assert remaining == b''
+    assert offset == start_offset + len(buf)

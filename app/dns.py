@@ -45,15 +45,30 @@ class BitField:
         return math.ceil(total_width / 8)
 
     @classmethod
-    def unpack(cls: type[_TBF], buf: bytes) -> _TBF:
-        """Unpack a bitfield out of a byte buffer."""
-        if len(buf) < cls.total_bytes:
+    def unpack(cls: type[_TBF], buf: bytes, offset: int) -> tuple[_TBF, int]:
+        """
+        Unpack a bitfield out of a byte buffer.
+
+        Parameters
+        ----------
+        buf
+            The byte buffer to unpack.
+        offset
+            The offset in the byte buffer at which to start unpacking this struct.
+
+        Returns
+        -------
+        bitfield
+            The bit field struct.
+        offset
+            The offset of the next byte after this struct.
+        """
+        if len(buf[offset:]) < cls.total_bytes:
             raise ValueError(
-                f'Buffer of length {len(buf)} is smaller than expected '
-                f'bitfield size ({cls.total_bytes}).')
+                f'Buffer of length {len(buf) - offset} is smaller than expected '
+                f'bitfield size ({cls.total_bytes})')
 
         result = {}
-        index = 0
         temp_value = 0
         current_width = 0
         for field in dataclasses.fields(cls):
@@ -62,9 +77,9 @@ class BitField:
             # Grab enough data from the buffer for this field.
             while current_width < width:
                 temp_value <<= 8
-                temp_value |= buf[index]
+                temp_value |= buf[offset]
                 current_width += 8
-                index += 1
+                offset += 1
 
             # Get this field's bits by shifting (and truncating) extra bits.
             result[field.name] = temp_value >> (current_width - width)
@@ -76,7 +91,7 @@ class BitField:
             temp_value &= mask
             current_width -= width
 
-        return cls(**result)
+        return cls(**result), offset
 
     def pack(self) -> bytes:
         """
@@ -147,16 +162,33 @@ class LabelSequence(tuple[bytes, ...]):
         return self
 
     @classmethod
-    def unpack(cls, buf: bytes) -> tuple[LabelSequence, bytes]:
-        """Unpack a label sequence out of a byte buffer and return remaining bytes."""
+    def unpack(cls, buf: bytes, offset: int) -> tuple[LabelSequence, int]:
+        """
+        Unpack a label sequence out of a byte buffer.
+
+        Parameters
+        ----------
+        buf
+            The byte buffer to unpack.
+        offset
+            The offset in the byte buffer at which to start unpacking this label
+            sequence.
+
+        Returns
+        -------
+        label
+            The label sequence.
+        offset
+            The offset of the next byte after this label sequence.
+        """
         # TODO: Check buffer size.
         name = []
-        while (size := buf[0]) != 0:
+        while (size := buf[offset]) != 0:
             # Add 1 everywhere to skip the size byte.
-            label = buf[1:size + 1]
-            buf = buf[size + 1:]
+            label = buf[offset + 1:offset + size + 1]
+            offset += size + 1
             name.append(label)
-        return cls(name), buf[1:]
+        return cls(name), offset + 1
 
     def pack(self) -> bytes:
         """Pack a label sequence into a bytes object."""
@@ -223,13 +255,29 @@ class Question:
         _check_bit_fields(self)
 
     @classmethod
-    def unpack(cls, buf: bytes) -> tuple[Question, bytes]:
-        """Unpack a question out of a byte buffer and return remaining bytes."""
+    def unpack(cls, buf: bytes, offset: int) -> tuple[Question, int]:
+        """
+        Unpack a question out of a byte buffer.
+
+        Parameters
+        ----------
+        buf
+            The byte buffer to unpack.
+        offset
+            The offset in the byte buffer at which to start unpacking this question.
+
+        Returns
+        -------
+        question
+            The question.
+        offset
+            The offset of the next byte after this question.
+        """
         # TODO: Check buffer size.
-        name, remaining = LabelSequence.unpack(buf)
-        qtype = QuestionType(int.from_bytes(remaining[0:2]))
-        qclass = QuestionClass(int.from_bytes(remaining[2:4]))
-        return cls(name=name, qtype=qtype, qclass=qclass), remaining[4:]
+        name, offset = LabelSequence.unpack(buf, offset)
+        qtype = QuestionType(int.from_bytes(buf[offset:offset + 2]))
+        qclass = QuestionClass(int.from_bytes(buf[offset + 2:offset + 4]))
+        return cls(name=name, qtype=qtype, qclass=qclass), offset + 4
 
     def pack(self) -> bytes:
         """Pack a question into a bytes object."""
@@ -286,16 +334,33 @@ class ResourceRecord:
         _check_bit_fields(self)
 
     @classmethod
-    def unpack(cls, buf: bytes) -> ResourceRecord:
-        """Unpack a DNS resource record out of a byte buffer."""
-        name, buf = LabelSequence.unpack(buf)
-        atype = AnswerType(int.from_bytes(buf[0:2]))
-        aclass = AnswerClass(int.from_bytes(buf[2:4]))
-        ttl = int.from_bytes(buf[4:8], signed=True)
-        rdlen = int.from_bytes(buf[8:10])
-        data = buf[10:rdlen + 10]
+    def unpack(cls, buf: bytes, offset: int) -> tuple[ResourceRecord, int]:
+        """
+        Unpack a DNS resource record out of a byte buffer.
+
+        Parameters
+        ----------
+        buf
+            The byte buffer to unpack.
+        offset
+            The offset in the byte buffer at which to start unpacking this resource
+            record.
+
+        Returns
+        -------
+        record
+            The resource record.
+        offset
+            The offset of the next byte after this resource record.
+        """
+        name, offset = LabelSequence.unpack(buf, offset)
+        atype = AnswerType(int.from_bytes(buf[offset:offset + 2]))
+        aclass = AnswerClass(int.from_bytes(buf[offset + 2:offset + 4]))
+        ttl = int.from_bytes(buf[offset + 4:offset + 8], signed=True)
+        rdlen = int.from_bytes(buf[offset + 8:offset + 10])
+        data = buf[offset + 10:offset + rdlen + 10]
         return (cls(name=name, atype=atype, aclass=aclass, ttl=ttl, data=data),
-                buf[rdlen+10:])
+                offset + rdlen + 10)
 
     def pack(self) -> bytes:
         """Pack a DNS resource record into a bytes object."""
@@ -328,17 +393,32 @@ class Packet:
             )
 
     @classmethod
-    def unpack(cls, buf: bytes) -> Packet:
-        """Unpack a DNS packet out of a byte buffer."""
-        header = Header.unpack(buf)
-        remaining = buf[Header.total_bytes:]
+    def unpack(cls, buf: bytes, offset: int = 0) -> tuple[Packet, int]:
+        """
+        Unpack a DNS packet out of a byte buffer.
+
+        Parameters
+        ----------
+        buf
+            The byte buffer to unpack.
+        offset
+            The offset in the byte buffer at which to start unpacking this packet.
+
+        Returns
+        -------
+        packet
+            The DNS packet.
+        offset
+            The offset of the next byte after this packet.
+        """
+        header, offset = Header.unpack(buf, offset)
 
         questions = []
         for i in range(header.question_count):
-            question, remaining = Question.unpack(remaining)
+            question, offset = Question.unpack(buf, offset)
             questions.append(question)
 
-        return cls(header=header, questions=tuple(questions))
+        return cls(header=header, questions=tuple(questions)), offset
 
     def pack(self) -> bytes:
         """Pack a DNS packet into a bytes object."""
