@@ -19,12 +19,14 @@ def main():
             print()
 
             response_code = 0 if request.header.operation_code == 0 else 4
-            answer = dns.ResourceRecord(
-                request.questions[0].name,
-                dns.AnswerType.A,
-                dns.AnswerClass.IN,
-                123,
-                b'\x01\x02\x03\x04')
+            answers = tuple(
+                dns.ResourceRecord(
+                    question.name,
+                    dns.AnswerType.A,
+                    dns.AnswerClass.IN,
+                    123 + 10 * i,
+                    b'\x01\x02\x03\x04')
+                for i, question in enumerate(request.questions))
 
             response = dns.Packet(
                 # Expected header for the "Write header section" stage.
@@ -35,7 +37,7 @@ def main():
                                   recursion_desired=request.header.recursion_desired,
                                   recursion_available=0, response_code=response_code),
                 questions=request.questions,
-                answers=(answer, ),
+                answers=answers,
                 auto_set_header=True,
             )
             print('RESPONSE')
