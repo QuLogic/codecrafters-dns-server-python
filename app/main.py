@@ -11,7 +11,8 @@ def main():
         try:
             buf, source = udp_socket.recvfrom(512)
 
-            request = dns.Packet.unpack(buf)
+            request, bytes_used = dns.Packet.unpack(buf)
+            print(f'Received request of {len(buf)} bytes and parsed {bytes_used} bytes')
             print('REQUEST')
             print('=======')
             request.print(indent_level=1)
