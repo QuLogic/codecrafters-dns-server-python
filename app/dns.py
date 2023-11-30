@@ -412,6 +412,9 @@ class Packet:
                 self.header,
                 question_count=len(self.questions),
                 answer_record_count=len(self.answers),
+                # Not implemented.
+                authority_record_count=0,
+                additional_record_count=0,
             )
 
     @classmethod
