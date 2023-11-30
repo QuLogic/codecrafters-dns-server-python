@@ -264,7 +264,7 @@ class QuestionClass(enum.IntEnum):
     ALL = 255  # Any class.
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Question:
     """A DNS question."""
 
