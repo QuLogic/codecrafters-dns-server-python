@@ -15,6 +15,7 @@ class OpenRequest:
     def __init__(self, source: tuple[str, int], request: dns.Packet):
         self.source = source
         self.request = request
+        self.response_code = 0
         self.answers: dict[dns.Question, dns.ResourceRecord | None] = {
             question: None for question in request.questions}
 
@@ -24,10 +25,15 @@ class OpenRequest:
     @property
     def is_complete(self) -> bool:
         """Whether this request is complete."""
-        return all(value is not None for value in self.answers.values())
+        return (self.response_code != 0 or
+                all(value is not None for value in self.answers.values()))
 
     def add_response(self, response: dns.Packet) -> None:
         """Add a response to this open request."""
+        if response.header.response_code != 0:
+            self.response_code = response.header.response_code
+            self.answers.clear()
+            return
         for answer in response.answers:
             question = dns.Question(answer.name, dns.QuestionType(answer.atype),
                                     dns.QuestionClass(answer.atype))
@@ -37,7 +43,9 @@ class OpenRequest:
         """Convert to a response packet, if this request is complete."""
         if not self.is_complete:
             raise ValueError('Cannot convert open request to response')
-        response_code = 0 if self.request.header.operation_code == 0 else 4
+        response_code = (
+            self.response_code if self.response_code != 0 else
+            0 if self.request.header.operation_code == 0 else 4)
         answers = typing.cast(dict[dns.Question, dns.ResourceRecord],  # When complete.
                               self.answers)
         response = dns.Packet(
